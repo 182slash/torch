@@ -1,0 +1,486 @@
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Space+Mono:wght@400;700&family=Syne:wght@400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Design Token Variables — BLACK / WHITE / GREEN ────────────── */
+:root {
+  --bg-void: #000000;
+  --bg-surface: #0a0a0a;
+  --bg-elevated: #111111;
+  --accent-cyan: #00ff66;
+  --accent-green: #00ff66;
+  --accent-amber: #00ff66;
+  --text-primary: #ffffff;
+  --text-secondary: #888888;
+  --border-glow: rgba(0, 255, 102, 0.2);
+  --border-glow-strong: rgba(0, 255, 102, 0.5);
+  --grid-line: rgba(0, 255, 102, 0.05);
+
+  --font-orbitron: 'Orbitron', sans-serif;
+  --font-space-mono: 'Space Mono', monospace;
+  --font-syne: 'Syne', sans-serif;
+
+  --transition-default: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --glow-cyan: 0 0 20px rgba(0, 255, 102, 0.4), 0 0 40px rgba(0, 255, 102, 0.15);
+  --glow-green: 0 0 20px rgba(0, 255, 102, 0.4), 0 0 40px rgba(0, 255, 102, 0.15);
+}
+
+/* ─── Base Reset ────────────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  scrollbar-width: thin;
+  scrollbar-color: var(--accent-green) var(--bg-surface);
+}
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg-surface);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--accent-green);
+  border-radius: 2px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #44ff88;
+}
+
+body {
+  background-color: var(--bg-void);
+  color: var(--text-primary);
+  font-family: var(--font-syne);
+  line-height: 1.6;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ─── Typography Utilities ──────────────────────────────────────── */
+.font-orbitron  { font-family: var(--font-orbitron); }
+.font-space-mono{ font-family: var(--font-space-mono); }
+.font-syne      { font-family: var(--font-syne); }
+
+/* ─── Page Load Overlay ─────────────────────────────────────────── */
+.page-transition-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-void);
+  z-index: 9999;
+  animation: pageFadeOut 0.8s ease forwards 0.1s;
+  pointer-events: none;
+}
+
+@keyframes pageFadeOut {
+  0%   { opacity: 1; }
+  100% { opacity: 0; visibility: hidden; }
+}
+
+/* ─── Scroll Animation System ───────────────────────────────────── */
+.scroll-reveal {
+  opacity: 0;
+  transform: translateY(24px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+
+.scroll-reveal.animate-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.scroll-reveal-delay-1 { transition-delay: 0.1s; }
+.scroll-reveal-delay-2 { transition-delay: 0.2s; }
+.scroll-reveal-delay-3 { transition-delay: 0.3s; }
+
+/* ─── Hero Scanline Overlay ─────────────────────────────────────── */
+.scanline-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+  overflow: hidden;
+}
+
+.scanline-overlay::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 255, 102, 0.012) 2px,
+    rgba(0, 255, 102, 0.012) 4px
+  );
+}
+
+@keyframes scanline {
+  0%   { top: 0;    opacity: 1;   }
+  100% { top: 100%; opacity: 0.3; }
+}
+
+/* ─── Grid & Dot Background Patterns ───────────────────────────── */
+.grid-bg {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+.dot-bg {
+  background-image: radial-gradient(circle, rgba(0, 255, 102, 0.07) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+/* ─── Glassmorphism ─────────────────────────────────────────────── */
+.glass {
+  background: rgba(17, 17, 17, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-glow);
+}
+
+.glass-strong {
+  background: rgba(10, 10, 10, 0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border-glow);
+}
+
+/* ─── Glow Card ─────────────────────────────────────────────────── */
+.glow-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-glow);
+  position: relative;
+  transition: transform var(--transition-default),
+              border-color var(--transition-default),
+              box-shadow var(--transition-default);
+}
+
+.glow-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--accent-green);
+  box-shadow: var(--glow-green);
+}
+
+/* ─── Corner Brackets ───────────────────────────────────────────── */
+.corner-bracket::before,
+.corner-bracket::after {
+  content: '';
+  position: absolute;
+  width: 12px;
+  height: 12px;
+  border-color: var(--accent-green);
+  border-style: solid;
+  opacity: 0.6;
+  transition: opacity 0.3s ease, width 0.3s ease, height 0.3s ease;
+}
+
+.corner-bracket::before {
+  top: -1px;
+  left: -1px;
+  border-width: 1px 0 0 1px;
+}
+
+.corner-bracket::after {
+  bottom: -1px;
+  right: -1px;
+  border-width: 0 1px 1px 0;
+}
+
+.corner-bracket:hover::before,
+.corner-bracket:hover::after {
+  opacity: 1;
+  width: 18px;
+  height: 18px;
+}
+
+/* ─── Neon Text Effects ─────────────────────────────────────────── */
+.text-glow-cyan {
+  color: var(--accent-green);
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.6), 0 0 30px rgba(0, 255, 102, 0.3);
+}
+
+.text-glow-green {
+  color: var(--accent-green);
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.6), 0 0 30px rgba(0, 255, 102, 0.3);
+}
+
+/* ─── Blinking Cursor ───────────────────────────────────────────── */
+.cursor-blink::after {
+  content: '▮';
+  color: var(--accent-green);
+  animation: blink 1s step-end infinite;
+  margin-left: 2px;
+  font-size: 0.8em;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0; }
+}
+
+/* ─── Gradient Mesh Background ──────────────────────────────────── */
+.gradient-mesh {
+  position: relative;
+}
+
+.gradient-mesh::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 50% at 20% 50%, rgba(0, 255, 102, 0.03) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 80% at 80% 20%, rgba(0, 255, 102, 0.02) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 60% at 50% 100%, rgba(0, 40, 20, 0.06) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ─── Neon Button ───────────────────────────────────────────────── */
+.neon-btn {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 28px;
+  font-family: var(--font-orbitron);
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--accent-green);
+  border: 1px solid var(--accent-green);
+  background: transparent;
+  cursor: pointer;
+  transition: all var(--transition-default);
+  overflow: hidden;
+}
+
+.neon-btn::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent-green);
+  opacity: 0;
+  transition: opacity var(--transition-default);
+  z-index: 0;
+}
+
+.neon-btn:hover {
+  color: #000000;
+  box-shadow: var(--glow-green);
+  transform: scale(1.03);
+}
+
+.neon-btn:hover::before {
+  opacity: 1;
+}
+
+.neon-btn > * {
+  position: relative;
+  z-index: 1;
+}
+
+.neon-btn-green {
+  color: var(--accent-green);
+  border-color: var(--accent-green);
+}
+
+.neon-btn-green::before {
+  background: var(--accent-green);
+}
+
+.neon-btn-green:hover {
+  box-shadow: var(--glow-green);
+}
+
+/* ─── Section Divider ───────────────────────────────────────────── */
+.section-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  color: var(--text-secondary);
+}
+
+.section-divider::before,
+.section-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-glow), transparent);
+}
+
+/* ─── Status Dot ────────────────────────────────────────────────── */
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: 0 0 8px var(--accent-green);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 4px var(--accent-green); }
+  50%       { box-shadow: 0 0 14px var(--accent-green), 0 0 24px rgba(0, 255, 102, 0.3); }
+}
+
+/* ─── Hero Text Stagger Animations ─────────────────────────────── */
+.hero-tag {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease forwards 0.2s;
+}
+
+.hero-title {
+  opacity: 0;
+  animation: fadeInUp 0.7s ease forwards 0.4s;
+}
+
+.hero-subtitle {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease forwards 0.6s;
+}
+
+.hero-body {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease forwards 0.8s;
+}
+
+.hero-cta {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease forwards 1.0s;
+}
+
+.hero-badges {
+  opacity: 0;
+  animation: fadeInUp 0.6s ease forwards 1.2s;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to   { opacity: 1; transform: translateY(0);    }
+}
+
+/* ─── Icon Badge ────────────────────────────────────────────────── */
+.icon-badge {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  background: rgba(0, 255, 102, 0.05);
+  border: 1px solid rgba(0, 255, 102, 0.2);
+  font-family: var(--font-space-mono);
+  font-size: 0.7rem;
+  color: var(--text-secondary);
+  letter-spacing: 0.1em;
+  transition: all 0.3s ease;
+}
+
+.icon-badge:hover {
+  background: rgba(0, 255, 102, 0.1);
+  border-color: var(--accent-green);
+  color: var(--accent-green);
+}
+
+/* ─── Service Icon Square ───────────────────────────────────────── */
+.service-icon-wrap {
+  width: 44px;
+  height: 44px;
+  background: rgba(0, 255, 102, 0.08);
+  border: 1px solid rgba(0, 255, 102, 0.25);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* ─── Navbar Scroll Shrink ──────────────────────────────────────── */
+.navbar-scrolled {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+  background: rgba(0, 0, 0, 0.97) !important;
+}
+
+/* ─── Input Styling ─────────────────────────────────────────────── */
+.cyber-input {
+  background: rgba(17, 17, 17, 0.9);
+  border: 1px solid var(--border-glow);
+  color: var(--text-primary);
+  font-family: var(--font-space-mono);
+  font-size: 0.8rem;
+  padding: 12px 16px;
+  outline: none;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+  width: 100%;
+}
+
+.cyber-input::placeholder {
+  color: var(--text-secondary);
+}
+
+.cyber-input:focus {
+  border-color: var(--accent-green);
+  box-shadow: 0 0 0 1px rgba(0, 255, 102, 0.2);
+}
+
+/* ─── Chat Bubbles ──────────────────────────────────────────────── */
+.chat-bubble-visitor {
+  background: rgba(0, 255, 102, 0.07);
+  border: 1px solid rgba(0, 255, 102, 0.2);
+  border-radius: 12px 12px 12px 2px;
+}
+
+.chat-bubble-admin {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px 12px 2px 12px;
+}
+
+/* ─── Typing Indicator ──────────────────────────────────────────── */
+.typing-indicator span {
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  animation: typingDot 1.4s ease-in-out infinite;
+}
+
+.typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+.typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+@keyframes typingDot {
+  0%, 80%, 100% { opacity: 0.3; transform: scale(0.8); }
+  40%           { opacity: 1;   transform: scale(1);   }
+}
+
+/* ─── Gradient Text ─────────────────────────────────────────────── */
+.gradient-text-cyan {
+  background: linear-gradient(135deg, var(--accent-green) 0%, #88ffcc 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ─── About page torch highlight ────────────────────────────────── */
+.torch-highlight {
+  color: var(--accent-green);
+  text-shadow: 0 0 10px rgba(0, 255, 102, 0.4);
+}
+
+/* ─── Mobile ────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .grid-bg { background-size: 40px 40px; }
+}
