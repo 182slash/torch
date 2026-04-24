@@ -1,8 +1,87 @@
 import { createServer } from 'http'
 import { Server as SocketIOServer } from 'socket.io'
+import { Pool } from 'pg'
 
 const port = parseInt(process.env.PORT || '3001', 10)
 const clientOrigin = process.env.CLIENT_ORIGIN || 'http://localhost:3000'
+
+// ─── Database ─────────────────────────────────────────────────────────────────
+
+const db = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
+})
+
+async function initDb() {
+  await db.query(`
+    CREATE TABLE IF NOT EXISTS visitor_sessions (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      connected_at BIGINT NOT NULL,
+      is_online BOOLEAN DEFAULT false
+    );
+
+    CREATE TABLE IF NOT EXISTS messages (
+      id TEXT PRIMARY KEY,
+      visitor_id TEXT NOT NULL REFERENCES visitor_sessions(id) ON DELETE CASCADE,
+      content TEXT NOT NULL,
+      sender TEXT NOT NULL,
+      timestamp BIGINT NOT NULL
+    );
+  `)
+  console.log('Database initialized')
+}
+
+async function upsertSession(session: VisitorSession) {
+  await db.query(
+    `INSERT INTO visitor_sessions (id, name, connected_at, is_online)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (id) DO UPDATE SET is_online = $4`,
+    [session.id, session.name, session.connectedAt, session.isOnline]
+  )
+}
+
+async function saveMessage(message: Message) {
+  await db.query(
+    `INSERT INTO messages (id, visitor_id, content, sender, timestamp)
+     VALUES ($1, $2, $3, $4, $5)
+     ON CONFLICT (id) DO NOTHING`,
+    [message.id, message.visitorId, message.content, message.sender, message.timestamp]
+  )
+}
+
+async function loadAllSessions(): Promise<VisitorSession[]> {
+  const sessionsRes = await db.query(
+    `SELECT * FROM visitor_sessions ORDER BY connected_at DESC LIMIT 100`
+  )
+  const messagesRes = await db.query(
+    `SELECT * FROM messages ORDER BY timestamp ASC`
+  )
+
+  return sessionsRes.rows.map((s) => ({
+    id: s.id,
+    name: s.name,
+    connectedAt: Number(s.connected_at),
+    isOnline: false, // all offline on boot, updated when they reconnect
+    socketId: '',
+    messages: messagesRes.rows
+      .filter((m) => m.visitor_id === s.id)
+      .map((m) => ({
+        id: m.id,
+        content: m.content,
+        sender: m.sender as 'visitor' | 'admin',
+        timestamp: Number(m.timestamp),
+        visitorId: m.visitor_id,
+      })),
+  }))
+}
+
+async function setSessionOnline(visitorId: string, isOnline: boolean) {
+  await db.query(
+    `UPDATE visitor_sessions SET is_online = $1 WHERE id = $2`,
+    [isOnline, visitorId]
+  )
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -35,7 +114,6 @@ function generateVisitorName(): string {
 // ─── HTTP Server ──────────────────────────────────────────────────────────────
 
 const httpServer = createServer((req, res) => {
-  // Basic health check endpoint
   if (req.url === '/health') {
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({ status: 'ok', visitors: visitorSessions.size }))
@@ -55,42 +133,47 @@ const io = new SocketIOServer(httpServer, {
   transports: ['websocket', 'polling'],
 })
 
-// ─── Declare both namespaces upfront to avoid forward-ref issues ──────────────
-
 const visitorNs = io.of('/visitor')
 const adminNs = io.of('/admin')
 
 // ─── Visitor namespace ────────────────────────────────────────────────────────
 
-visitorNs.on('connection', (socket) => {
+visitorNs.on('connection', async (socket) => {
   const visitorId = (socket.handshake.query.visitorId as string) || socket.id
-  const name = generateVisitorName()
 
-  const session: VisitorSession = {
-    id: visitorId,
-    name,
-    connectedAt: Date.now(),
-    messages: [],
-    isOnline: true,
-    socketId: socket.id,
+  // Restore existing session or create new one
+  let session = visitorSessions.get(visitorId)
+  if (!session) {
+    const name = generateVisitorName()
+    session = {
+      id: visitorId,
+      name,
+      connectedAt: Date.now(),
+      messages: [],
+      isOnline: true,
+      socketId: socket.id,
+    }
+    visitorSessions.set(visitorId, session)
+    await upsertSession(session)
+  } else {
+    session.isOnline = true
+    session.socketId = socket.id
+    await setSessionOnline(visitorId, true)
   }
-  visitorSessions.set(visitorId, session)
 
   socket.join(`room:${visitorId}`)
 
-  // Notify admin of new visitor
   adminNs.emit('visitor:join', {
     id: session.id,
     name: session.name,
     connectedAt: session.connectedAt,
     isOnline: true,
-    messages: [],
+    messages: session.messages,
   })
 
-  // Confirm registration to visitor
-  socket.emit('visitor:registered', { id: visitorId, name })
+  socket.emit('visitor:registered', { id: visitorId, name: session.name })
 
-  socket.on('visitor:message', (data: { content: string }) => {
+  socket.on('visitor:message', async (data: { content: string }) => {
     const sess = visitorSessions.get(visitorId)
     if (!sess) return
 
@@ -102,8 +185,8 @@ visitorNs.on('connection', (socket) => {
       visitorId,
     }
     sess.messages.push(message)
+    await saveMessage(message)
 
-    // Forward to all admin sockets
     adminNs.emit('visitor:message', { visitorId, message })
   })
 
@@ -111,10 +194,11 @@ visitorNs.on('connection', (socket) => {
     adminNs.emit('visitor:typing', { visitorId, isTyping: data.isTyping })
   })
 
-  socket.on('disconnect', () => {
+  socket.on('disconnect', async () => {
     const sess = visitorSessions.get(visitorId)
     if (sess) {
       sess.isOnline = false
+      await setSessionOnline(visitorId, false)
       adminNs.emit('visitor:disconnect', { visitorId })
     }
   })
@@ -132,7 +216,7 @@ adminNs.use((socket, next) => {
 })
 
 adminNs.on('connection', (socket) => {
-  // Send all current sessions to newly connected admin
+  // Send all sessions including persisted history
   const sessions = Array.from(visitorSessions.values()).map((s) => ({
     id: s.id,
     name: s.name,
@@ -142,7 +226,7 @@ adminNs.on('connection', (socket) => {
   }))
   socket.emit('admin:sessions', sessions)
 
-  socket.on('admin:message', (data: { visitorId: string; content: string }) => {
+  socket.on('admin:message', async (data: { visitorId: string; content: string }) => {
     const session = visitorSessions.get(data.visitorId)
     if (!session) return
 
@@ -154,11 +238,9 @@ adminNs.on('connection', (socket) => {
       visitorId: data.visitorId,
     }
     session.messages.push(message)
+    await saveMessage(message)
 
-    // Forward to visitor
     visitorNs.to(`room:${data.visitorId}`).emit('admin:message', { message })
-
-    // Broadcast to other admin sockets
     socket.broadcast.emit('admin:message', { visitorId: data.visitorId, message })
   })
 
@@ -169,12 +251,28 @@ adminNs.on('connection', (socket) => {
 
 // ─── Start ────────────────────────────────────────────────────────────────────
 
-httpServer
-  .once('error', (err) => {
-    console.error(err)
-    process.exit(1)
-  })
-  .listen(port, () => {
-    console.log(`Torch socket server ready on port ${port}`)
-    console.log(`Accepting connections from: ${clientOrigin}`)
-  })
+async function main() {
+  await initDb()
+
+  // Load persisted sessions into memory
+  const savedSessions = await loadAllSessions()
+  for (const session of savedSessions) {
+    visitorSessions.set(session.id, session)
+  }
+  console.log(`Loaded ${savedSessions.length} sessions from database`)
+
+  httpServer
+    .once('error', (err) => {
+      console.error(err)
+      process.exit(1)
+    })
+    .listen(port, () => {
+      console.log(`Torch socket server ready on port ${port}`)
+      console.log(`Accepting connections from: ${clientOrigin}`)
+    })
+}
+
+main().catch((err) => {
+  console.error('Failed to start server:', err)
+  process.exit(1)
+})
