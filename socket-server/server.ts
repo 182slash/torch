@@ -50,6 +50,20 @@ async function saveMessage(message: Message) {
   )
 }
 
+async function loadMessagesForVisitor(visitorId: string): Promise<Message[]> {
+  const res = await db.query(
+    `SELECT * FROM messages WHERE visitor_id = $1 ORDER BY timestamp ASC`,
+    [visitorId]
+  )
+  return res.rows.map((m) => ({
+    id: m.id,
+    content: m.content,
+    sender: m.sender as 'visitor' | 'admin',
+    timestamp: Number(m.timestamp),
+    visitorId: m.visitor_id,
+  }))
+}
+
 async function loadAllSessions(): Promise<VisitorSession[]> {
   const sessionsRes = await db.query(
     `SELECT * FROM visitor_sessions ORDER BY connected_at DESC LIMIT 100`
@@ -62,7 +76,7 @@ async function loadAllSessions(): Promise<VisitorSession[]> {
     id: s.id,
     name: s.name,
     connectedAt: Number(s.connected_at),
-    isOnline: false, // all offline on boot, updated when they reconnect
+    isOnline: false,
     socketId: '',
     messages: messagesRes.rows
       .filter((m) => m.visitor_id === s.id)
@@ -141,15 +155,18 @@ const adminNs = io.of('/admin')
 visitorNs.on('connection', async (socket) => {
   const visitorId = (socket.handshake.query.visitorId as string) || socket.id
 
-  // Restore existing session or create new one
   let session = visitorSessions.get(visitorId)
+
   if (!session) {
+    // Try to restore from DB (returning visitor after server restart)
+    const historicMessages = await loadMessagesForVisitor(visitorId)
     const name = generateVisitorName()
+
     session = {
       id: visitorId,
       name,
       connectedAt: Date.now(),
-      messages: [],
+      messages: historicMessages,
       isOnline: true,
       socketId: socket.id,
     }
@@ -171,7 +188,12 @@ visitorNs.on('connection', async (socket) => {
     messages: session.messages,
   })
 
-  socket.emit('visitor:registered', { id: visitorId, name: session.name })
+  // Send history back to visitor on registration
+  socket.emit('visitor:registered', {
+    id: visitorId,
+    name: session.name,
+    messages: session.messages,
+  })
 
   socket.on('visitor:message', async (data: { content: string }) => {
     const sess = visitorSessions.get(visitorId)
@@ -216,7 +238,6 @@ adminNs.use((socket, next) => {
 })
 
 adminNs.on('connection', (socket) => {
-  // Send all sessions including persisted history
   const sessions = Array.from(visitorSessions.values()).map((s) => ({
     id: s.id,
     name: s.name,
@@ -254,7 +275,6 @@ adminNs.on('connection', (socket) => {
 async function main() {
   await initDb()
 
-  // Load persisted sessions into memory
   const savedSessions = await loadAllSessions()
   for (const session of savedSessions) {
     visitorSessions.set(session.id, session)
