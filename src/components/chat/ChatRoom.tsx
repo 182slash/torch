@@ -108,12 +108,16 @@ function AdminDashboard({ token }: { token: string }) {
     })
 
     socket.on('admin:message', (data: { visitorId: string; message: Message }) => {
+      // Only handle messages from OTHER admin sockets (broadcast)
+      // Our own messages are added optimistically in sendMessage
       setSessions((prev) =>
-        prev.map((s) =>
-          s.id === data.visitorId
-            ? { ...s, messages: [...s.messages, data.message] }
-            : s
-        )
+        prev.map((s) => {
+          if (s.id !== data.visitorId) return s
+          // Avoid duplicate if we already added it optimistically
+          const exists = s.messages.find((m) => m.id === data.message.id)
+          if (exists) return s
+          return { ...s, messages: [...s.messages, data.message] }
+        })
       )
     })
 
@@ -152,7 +156,26 @@ function AdminDashboard({ token }: { token: string }) {
   const sendMessage = useCallback(() => {
     const content = inputValue.trim()
     if (!content || !selectedId || !socketRef.current) return
+
+    const message: Message = {
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      content,
+      sender: 'admin',
+      timestamp: Date.now(),
+      visitorId: selectedId,
+    }
+
     socketRef.current.emit('admin:message', { visitorId: selectedId, content })
+
+    // Add to local state immediately so admin sees their own message
+    setSessions((prev) =>
+      prev.map((s) =>
+        s.id === selectedId
+          ? { ...s, messages: [...s.messages, message] }
+          : s
+      )
+    )
+
     setInputValue('')
   }, [inputValue, selectedId])
 
